@@ -1,0 +1,23 @@
+__pycache__/
+*.py[cod]
+*$py.class
+
+.idea/
+.vscode/
+.venv/
+venv/
+env/
+
+*.log
+.DS_Store
+Thumbs.db
+
+# Training data and generated corpora
+data/json/*.json
+data/corpus.*
+
+# Model checkpoints and experiment outputs
+weights/*.pth
+run/**/weights/*.pth
+*.pt
+*.ckpt
