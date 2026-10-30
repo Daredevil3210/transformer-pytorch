@@ -1,43 +1,36 @@
-# Transformer PyTorch 中英机器翻译
+[English](README.md) | [简体中文](README.zh.md)
 
-这是一个基于 PyTorch 实现的 Transformer 中英机器翻译项目，包含模型结构、训练流程、Beam Search 解码、SentencePiece 分词器以及单句翻译入口。
+# Transformer Machine Translation in PyTorch
 
-## 功能
+An educational English-to-Chinese translation project with a handwritten Transformer encoder–decoder, SentencePiece tokenization, training utilities, and beam search inference.
 
-- 从头实现 Transformer 编码器与解码器
-- 支持中英平行语料训练、验证与测试
-- 使用 SentencePiece 完成中英文分词
-- 使用 Beam Search 生成中文译文
-- 使用 SacreBLEU 评估翻译质量
+The repository contains source code and tokenizer models. Parallel corpora and trained translation weights are not included. No reproducible benchmark result or automated test suite is provided.
 
-## 项目结构
+## What the project covers
 
-```text
-.
-├── main.py                 # 训练与评估入口
-├── translate.py            # 单句翻译入口
-├── config.py               # 模型、训练和文件路径配置
-├── beam_decoder.py         # Beam Search 解码
-├── model/                  # Transformer 模型与训练工具
-├── tools/                  # 数据加载、分词器和实验目录工具
-├── tokenizer/              # SentencePiece 模型与词表
-└── data/                   # 语料处理脚本与本地数据目录
-```
+- Multi-head attention, sinusoidal positional encoding, residual connections, and feed-forward layers.
+- Padding and causal masks, teacher-forced training, and token-level cross-entropy.
+- Adam with a Noam learning-rate schedule and a CUDA-oriented parallel loss helper.
+- Beam search decoding and Chinese-tokenized SacreBLEU validation.
+- Interactive English sentence translation.
 
-## 环境要求
+Defaults in `config.py`: 6 encoder/decoder layers, model dimension 512, 8 heads, feed-forward dimension 2048, and 32,000-token source and target vocabularies. These are configuration values, not a quality claim.
 
-- Python 3.10（原项目使用版本）
-- PyTorch（请根据 CPU 或 CUDA 版本从 [PyTorch 官网](https://pytorch.org/get-started/locally/)安装）
+## Environment
 
-安装其余依赖：
+The dependency file records Python 3.10 and historical PyTorch/CUDA combinations in comments; PyTorch itself is installed separately. Choose a PyTorch build suited to your hardware, then install the pinned supporting packages:
 
 ```bash
-pip install -r requirements.txt
+python -m venv .venv
+# Activate .venv in your shell, then install PyTorch separately.
+python -m pip install -r requirements.txt
 ```
 
-## 准备数据
+Supporting dependencies are NumPy, SentencePiece, SacreBLEU, and tqdm. Historical hardware notes are not a tested compatibility matrix. Run application commands from the repository root.
 
-训练数据未提交到仓库。请在 `data/json/` 下准备以下文件：
+## Prepare data and configuration
+
+Create all three UTF-8 JSON files before training. `main.py` constructs the test dataset even though its test call is disabled:
 
 ```text
 data/json/train.json
@@ -45,7 +38,7 @@ data/json/dev.json
 data/json/test.json
 ```
 
-每个文件都是 JSON 数组，每条数据由英文原文和中文译文组成：
+Each file is a JSON array of `[English source, Chinese target]` pairs:
 
 ```json
 [
@@ -54,30 +47,47 @@ data/json/test.json
 ]
 ```
 
-如果已有对齐的英文与中文语料，可参考 `data/get_corpus.py`、`data/analyze_corpus.py` 和 `data/json_unicode_preview.py` 进行处理。
+Use corpora you are entitled to use. No corpus download procedure is supplied. `data/get_corpus.py` extracts line-based text from existing JSON splits; it does not create the splits. Corpus analysis and Unicode preview scripts are optional inspection tools.
 
-## 训练
+The application loads `tokenizer/eng.model` and `tokenizer/chn.model`. Retraining tokenizers requires consistent vocabulary sizes and PAD/BOS/EOS IDs in `config.py`, and retraining translation weights with those tokenizers. `tokenizer/tokenize.py` expects `data/corpus.en` and `data/corpus.ch` and uses paths relative to `tokenizer/`.
 
-在 `config.py` 中调整超参数、GPU 编号和数据路径，然后运行：
+Review device settings before running. Defaults select CUDA device 0 (`gpu_id = '0'`, `device_id = [0]`), batch size 32, and 3 epochs. `main.py` and `translate.py` also set `CUDA_VISIBLE_DEVICES` to `0`. Training uses `MultiGPULossCompute`, whose replication/scatter operations require CUDA; setting `gpu_id` to an empty string alone does not provide CPU training. CPU inference also needs compatible checkpoint loading and device configuration.
+
+## Train and translate
+
+After preparing data, dependencies, and devices:
 
 ```bash
 python main.py
 ```
 
-训练产生的权重会保存在 `run/train/exp/weights/`。权重文件默认被 Git 忽略，避免超过 GitHub 的文件大小限制。
+Training computes development loss and BLEU each epoch. Best and final state dictionaries are saved under `run/train/exp/weights/`, or `exp1`, `exp2`, etc. when earlier experiment directories exist.
 
-## 单句翻译
-
-将训练好的权重放到 `config.py` 中 `test_model_path` 指定的位置，然后运行：
+Set `config.test_model_path` to an actual checkpoint matching the architecture and tokenizers, then run:
 
 ```bash
 python translate.py
 ```
 
-按提示输入英文句子即可获得中文翻译结果。
+Enter English sentences at the prompt; interrupt the terminal to stop. The default `best_bleu_26.30.pth` path is an example filename, not a bundled checkpoint or independently verified score. The original documentation reports a roughly 376 MB translation checkpoint, excluded from Git.
 
-## 仓库说明
+## Repository guide
 
-- 原始模型权重单文件约 376 MB，未纳入仓库。
-- 原始训练语料和教学资料未纳入仓库；使用或公开数据时，请确认相应的数据与文档许可。
-- 项目目前未声明开源许可证，默认保留所有权利。
+```text
+main.py                Training and development evaluation
+translate.py           Interactive translation
+config.py              Architecture, paths, checkpoints, devices
+beam_decoder.py        Beam search
+model/tf_model.py      Transformer implementation
+model/train_utils.py   Parallel loss and Noam optimizer
+tools/                 Dataset, masks, tokenizers, experiment folders
+tokenizer/             SentencePiece models and vocabularies
+data/                  Corpus tools and local JSON splits
+weights/               Local checkpoint placeholder
+```
+
+## Evaluation limits and provenance
+
+Development evaluation uses `sacrebleu.corpus_bleu(..., tokenize='zh')`. The disabled `test()` helper calls `evaluate()` with an extra argument and needs correction before test-set use. There is no supported test CLI or automated test suite. Training and inference were not executed for this documentation update.
+
+Original training data and teaching materials are excluded; their rights remain with their respective authors/providers. No license file is declared in this repository, so it provides no explicit open-source license grant.
